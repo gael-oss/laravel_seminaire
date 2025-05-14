@@ -10,13 +10,15 @@ class Seminaire extends Model
     use HasFactory;
 
     protected $fillable = [
-        'titre',
-        'date_presentation',
-        'resume',
-        'fichier',
-        'presentateur_id',
-        'theme_id'
-    ];
+    'titre',
+    'date_presentation',
+    'resume',
+    'fichier',
+    'presentateur_id', 
+    'theme_id',
+    'resume_path',
+    'statut' 
+];
 
     // Relation avec Presentateur
     public function presentateur()

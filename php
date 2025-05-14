@@ -33,4 +33,36 @@ class SeminaireValideNotification extends Notification
             ->line('Date de présentation : ' . $this->seminaire->date_presentation)
             ->action('Voir le séminaire', url('/seminaires/' . $this->seminaire->id));
     }
+    // Ajoutez ces méthodes
+public function valider(Seminaire $seminaire)
+{
+    $seminaire->update([
+        'statut' => 'validé',
+        'date_presentation' => now()->addDays(14) // Publier 14 jours après validation
+    ]);
+
+    // Notification au présentateur
+    $seminaire->presentateur->user->notify(new SeminaireValideNotification($seminaire));
+
+    return redirect()->route('seminaires.index-secretaire')
+        ->with('success', 'Séminaire validé et programmé !');
+}
+
+public function rejeter(Request $request, Seminaire $seminaire)
+{
+    $request->validate(['raison' => 'required|string']);
+
+    $seminaire->update([
+        'statut' => 'rejeté',
+        'raison_rejet' => $request->raison
+    ]);
+
+    // Notification avec motif
+    $seminaire->presentateur->user->notify(new SeminaireRejeteNotification(
+        $seminaire->titre, 
+        $request->raison
+    ));
+
+    return back()->with('success', 'Demande rejetée avec succès.');
+   }
 }

@@ -1,41 +1,81 @@
+<?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Seminaire;
 use App\Models\Presentateur;
 use App\Models\Theme;
+use App\Models\User; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use App\Notifications\ProgrammePublieNotification; 
+use App\Notifications\SeminaireValideNotification;
+use App\Notifications\SeminaireRejeteNotification;
 
 class SeminaireController extends Controller
 {
-    public function create()
+    public function index()
     {
-        $presentateurs = Presentateur::all();
-        $themes = Theme::all();
-        return view('seminaires.create', compact('presentateurs', 'themes'));
+        $seminaires = Seminaire::with(['presentateur', 'theme'])
+            ->where('statut', 'en_attente')
+            ->get();
+
+        return view('seminaires.index-secretaire', compact('seminaires'));
     }
 
-    public function store(Request $request)
+    public function valider(Seminaire $seminaire)
     {
-        $request->validate([
-            'titre' => 'required|string|max:255',
-            'date_presentation' => 'required|date',
-            'presentateur_id' => 'required|exists:presentateurs,id',
-            'theme_id' => 'required|exists:themes,id',
-            'fichier' => 'nullable|file|mimes:pdf,ppt,pptx'
+        $seminaire->update([
+            'statut' => 'validé',
+            'date_presentation' => now()->addDays(14)
         ]);
 
-        $seminaire = Seminaire::create($request->except('fichier'));
+        // Notification au présentateur
+        $seminaire->presentateur->user->notify(new SeminaireValideNotification($seminaire));
 
-        if ($request->hasFile('fichier')) {
-            $path = $request->file('fichier')->store('public/seminaires');
-            $seminaire->update(['fichier' => str_replace('public/', '', $path)]);
+        // Notification à tous les étudiants
+        User::where('role', 'etudiant')->each(function ($user) use ($seminaire) {
+            $user->notify(new ProgrammePublieNotification($seminaire));
+        });
+
+        return redirect()->route('seminaires.index-secretaire')
+            ->with('success', 'Séminaire validé et étudiants notifiés !');
+    }
+
+    public function rejeter(Request $request, Seminaire $seminaire)
+    {
+        $request->validate(['raison' => 'required|string']);
+
+        $seminaire->update([
+            'statut' => 'rejeté',
+            'raison_rejet' => $request->raison
+        ]);
+
+        $seminaire->presentateur->user->notify(
+            new SeminaireRejeteNotification($seminaire->titre, $request->raison)
+        );
+
+        return back()->with('success', 'Demande rejetée avec succès.');
+    }
+
+    public function calendrier()
+    {
+        $seminaires = Seminaire::where('statut', 'validé')
+            ->where('date_presentation', '>', now())
+            ->orderBy('date_presentation')
+            ->get();
+
+        return view('seminaires.calendrier', compact('seminaires'));
+    }
+
+    public function download(Seminaire $seminaire)
+    {
+        if (!Storage::exists('public/' . $seminaire->fichier)) {
+            abort(404);
         }
 
-        return redirect()->route('seminaires.index')->with('success', 'Séminaire créé !');
+        return Storage::download('public/' . $seminaire->fichier);
     }
- $presentateur = $seminaire->presentateur;
-    $presentateur->notify(new SeminaireValideNotification($seminaire));
 
-    
+   
 }

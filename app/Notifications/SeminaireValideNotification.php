@@ -39,6 +39,14 @@ class SeminaireValideNotification extends Notification
             ->action('Notification Action', url('/'))
             ->line('Thank you for using our application!');
     }
+    public function toMail($notifiable) 
+    {
+    return (new MailMessage)
+        ->subject('Votre séminaire a été validé !')
+        ->line('Votre présentation "' . $this->seminaire->titre . '" a été approuvée.')
+        ->line('Date prévue : ' . $this->seminaire->date_presentation->format('d/m/Y H:i'))
+        ->action('Voir les détails', url('/seminaires/' . $this->seminaire->id));
+    }
 
     /**
      * Get the array representation of the notification.
